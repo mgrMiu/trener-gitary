@@ -1,0 +1,1212 @@
+```html
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <!-- Blokada powiększania ekranu (szczypania) na telefonach -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <!-- Pasek powiadomień w kolorze aplikacji na Androidzie -->
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Trener Gitary PRO</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  
+  <style>
+    /* Optymalizacje pod dotyk na telefonie (zapobiega zaznaczaniu tekstu przy szybkim klikaniu) */
+    body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; touch-action: manipulation; -webkit-user-select: none; user-select: none; overscroll-behavior-y: none; }
+    .font-mono-code { font-family: 'JetBrains Mono', monospace; }
+    
+    .glow-success { box-shadow: 0 0 20px rgba(16, 185, 129, 0.5); }
+    
+    @keyframes pulse-recording {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    .recording-active { animation: pulse-recording 1.5s infinite; background-color: #ef4444; border-color: #dc2626; color: white; }
+    
+    @keyframes fret-hit {
+      0% { transform: scale(0.5); opacity: 0; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .anim-hit { animation: fret-hit 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+    @keyframes fret-miss {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      25% { transform: scale(1.2) rotate(-15deg); }
+      75% { transform: scale(1.2) rotate(15deg); }
+    }
+    .anim-miss { animation: fret-miss 0.3s ease-in-out; }
+
+    @keyframes marker-fade {
+      0% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    .anim-marker-fade { animation: marker-fade 5s ease-out forwards; pointer-events: none; }
+
+    /* Trzykrotny szybki rozbłysk błędu */
+    @keyframes error-pulse {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+      15% { box-shadow: 0 0 30px 10px rgba(239, 68, 68, 0.8); }
+      30% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+      45% { box-shadow: 0 0 30px 10px rgba(239, 68, 68, 0.8); }
+      60% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+      75% { box-shadow: 0 0 30px 10px rgba(239, 68, 68, 0.8); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    .error-flash { animation: error-pulse 0.8s ease-out; }
+
+    /* Zmieniona animacja błysku - płynne przechodzenie między progami */
+    @keyframes flare-anim {
+      0% { transform: translateY(-50%) scale(0.2) rotate(0deg); opacity: 0; left: 20%; }
+      50% { transform: translateY(-50%) scale(1.3) rotate(90deg); opacity: 1; left: 50%; }
+      100% { transform: translateY(-50%) scale(0.2) rotate(180deg); opacity: 0; left: 80%; }
+    }
+
+    .fretboard-scroll::-webkit-scrollbar { height: 12px; }
+    .fretboard-scroll::-webkit-scrollbar-track { background: #0f172a; border-radius: 6px; }
+    .fretboard-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 6px; border: 3px solid #0f172a; }
+    
+    .rosewood {
+      background: linear-gradient(90deg, #4a2512, #6a361c, #4a2512);
+      box-shadow: inset 0 20px 20px -20px rgba(0,0,0,0.9), inset 0 -20px 20px -20px rgba(0,0,0,0.9);
+    }
+    .fret-wire {
+      background: linear-gradient(90deg, #94a3b8, #e2e8f0, #94a3b8);
+      box-shadow: 2px 0 4px rgba(0,0,0,0.6);
+    }
+    .string-wire {
+      background: linear-gradient(180deg, #e2e8f0, #64748b);
+      box-shadow: 0 4px 6px rgba(0,0,0,0.8);
+    }
+    .nut-wire {
+      background: #fdf6e3;
+      box-shadow: 3px 0 6px rgba(0,0,0,0.8);
+    }
+    
+    .staff-line { border-bottom: 1px solid #64748b; height: 12px; width: 100%; }
+    .note-head { width: 16px; height: 12px; border-radius: 50%; background: white; transform: rotate(-15deg); position: absolute; left: 50%; }
+    .note-ledger { width: 26px; height: 1px; background: white; position: absolute; left: 50%; transform: translateX(-50%); }
+    .accidental { position: absolute; left: calc(50% - 20px); font-family: 'JetBrains Mono'; font-weight: bold; font-size: 18px; color: white; line-height: 12px;}
+
+    #pendulumArm { transition: transform 0.05s linear; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col p-2 sm:p-6 pb-10">
+
+  <!-- Zintegrowany system instalacji na Androidzie z poziomu kodu (PWA w locie) -->
+  <script>
+    (function initPWA() {
+      // Dynamiczny Manifest
+      const manifest = {
+        name: "Trener Gitary PRO",
+        short_name: "Trener Gitary",
+        display: "standalone",
+        start_url: ".",
+        background_color: "#0f172a",
+        theme_color: "#0f172a",
+        icons: [{
+          src: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='1em' font-size='80'>🎸</text></svg>",
+          sizes: "192x192",
+          type: "image/svg+xml"
+        }]
+      };
+      const stringManifest = JSON.stringify(manifest);
+      const blob = new Blob([stringManifest], {type: 'application/json'});
+      const manifestURL = URL.createObjectURL(blob);
+      document.head.insertAdjacentHTML('beforeend', `<link rel="manifest" href="${manifestURL}">`);
+
+      // Zastępczy Service Worker wymuszany przez Chrome do instalacji
+      const swCode = `self.addEventListener('fetch', function(event) {});`;
+      const swBlob = new Blob([swCode], {type: 'application/javascript'});
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(console.error);
+      }
+    })();
+
+    // Blokada wygaszania ekranu na Androidzie (Screen Wake Lock API)
+    let wakeLock = null;
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+        }
+      } catch (err) {
+        console.log('Wake Lock API nie wspierane lub odrzucone.');
+      }
+    }
+    document.addEventListener('visibilitychange', async () => {
+      if (wakeLock !== null && document.visibilityState === 'visible') requestWakeLock();
+    });
+  </script>
+
+  <header class="max-w-6xl mx-auto w-full mb-4">
+    <div class="flex flex-col md:flex-row gap-4 items-stretch">
+      <div class="flex-1 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl flex flex-col justify-between">
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">🎸 Trener Gitary PRO</h1>
+          <p class="text-xs text-slate-400 mt-1">Strojenie PL (A#, H). Ekran nie gaśnie po włączeniu kabla/mikrofonu.</p>
+        </div>
+        <button id="btnInitAudio" class="mt-4 w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all text-sm font-bold text-white shadow-lg flex justify-center items-center gap-2">
+          🎙️ Włącz Mikrofon / Kabel
+        </button>
+        <div id="audioErrorPanel" class="hidden mt-3 p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg text-rose-400 text-xs text-center font-medium">
+          Nie wykryto mikrofonu / kabla! Udziel uprawnień przeglądarce.
+        </div>
+      </div>
+
+      <div class="w-full md:w-1/4 min-w-[200px] bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl flex flex-col items-center justify-center relative overflow-hidden">
+        <div class="text-xs uppercase tracking-widest text-slate-500 font-bold mb-2">Tuner</div>
+        <div class="flex items-baseline gap-2">
+          <span id="tunerNote" class="text-5xl font-black text-slate-700">--</span>
+          <span id="tunerCents" class="text-sm font-mono-code text-slate-500 w-8 text-right">0c</span>
+        </div>
+        <div class="w-full h-2 bg-slate-800 rounded-full mt-4 relative overflow-hidden">
+          <div class="absolute left-1/2 top-0 bottom-0 w-0.5 bg-slate-500 -translate-x-1/2 z-10"></div>
+          <div id="tunerNeedle" class="absolute left-1/2 top-0 bottom-0 w-2 bg-slate-600 rounded-full opacity-30 -translate-x-1/2 transition-all duration-75"></div>
+        </div>
+        <div class="flex justify-between w-full mt-1 text-[10px] font-bold text-slate-500">
+          <span>b</span><span class="text-emerald-500">OK</span><span>#</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-6xl mx-auto w-full mb-4 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+    <button class="tab-btn active shrink-0 px-5 py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm shadow-lg shadow-indigo-500/20" data-target="lvl1">1. Poznaj swój gryf</button>
+    <button class="tab-btn shrink-0 px-5 py-3 rounded-xl bg-slate-800 text-slate-400 hover:text-white font-bold text-sm hover:bg-slate-700 transition" data-target="lvl2">2. Trening pentatoniki</button>
+    <button class="tab-btn shrink-0 px-5 py-3 rounded-xl bg-slate-800 text-slate-400 hover:text-white font-bold text-sm hover:bg-slate-700 transition" data-target="lvl3">3. Trening interwałów</button>
+    <button class="tab-btn shrink-0 px-5 py-3 rounded-xl bg-slate-800 text-slate-400 hover:text-white font-bold text-sm hover:bg-slate-700 transition border border-amber-500/30" data-target="lvl4">4. Ćwiczenia rytmiczne</button>
+  </div>
+
+  <main class="max-w-6xl mx-auto w-full flex-1 flex flex-col gap-4 relative">
+    
+    <div class="min-h-[240px] flex flex-col">
+        <!-- Poziom 1 -->
+        <div id="lvl1" class="tab-content bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl text-center flex-1 flex flex-col justify-center transition-all relative">
+          <div class="absolute top-4 right-4 sm:right-6 flex bg-slate-950 p-1 rounded-xl border border-slate-800">
+            <button class="lvl1-mode-btn active px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white" data-mode="text">Tekst</button>
+            <button class="lvl1-mode-btn px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition" data-mode="sheet">Nuty</button>
+            <button class="lvl1-mode-btn px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition" data-mode="audio">Słuch</button>
+          </div>
+          
+          <h2 class="text-sm font-bold text-indigo-400 uppercase tracking-widest mb-4 mt-6 sm:mt-0">Poznaj swój gryf</h2>
+          <div class="flex justify-center items-center gap-6 mb-4">
+            <div id="lvl1NoteBox" class="rounded-3xl w-40 h-40 sm:w-48 sm:h-48 flex items-center justify-center bg-slate-800/50 border border-slate-700 transition-all relative overflow-hidden">
+                <!-- JS Fill -->
+            </div>
+          </div>
+          <p class="text-slate-400 text-xs sm:text-sm px-4">Zagraj ten dźwięk lub kliknij prawidłowe miejsce na schemacie poniżej.</p>
+        </div>
+
+        <!-- Poziom 2 (Pentatonika) -->
+        <div id="lvl2" class="tab-content hidden bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl flex-1 flex flex-col justify-center">
+           <div class="flex flex-col md:flex-row justify-between gap-6">
+            <div>
+              <div class="flex items-center gap-3 mb-2">
+                 <h2 class="text-sm font-bold text-indigo-400 uppercase tracking-widest">Trening Pentatoniki</h2>
+                 <label class="flex items-center gap-2 text-xs font-semibold text-amber-200 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20 cursor-pointer">
+                   <input type="checkbox" id="lvl2HintToggle" class="accent-amber-500 w-3 h-3">
+                   💡 Podpowiedzi
+                 </label>
+              </div>
+              <div class="flex items-baseline gap-4 mb-2">
+                <h3 id="lvl2Key" class="text-3xl sm:text-4xl font-black text-white">--</h3>
+                <span class="text-slate-600 text-2xl">|</span>
+                <h4 id="lvl2Box" class="text-xl sm:text-2xl font-bold text-slate-300">Box --</h4>
+              </div>
+              <p class="text-xs sm:text-sm text-slate-400">Zagraj boks po kolei od najniższej (grubej) do najwyższej struny E1.</p>
+            </div>
+            <div class="flex flex-col gap-2 min-w-[200px]">
+              <button id="lvl2BtnRoll" class="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 transition font-semibold text-sm border border-slate-700">🎲 Losuj zadanie</button>
+              <button id="lvl2BtnStart" class="px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 transition font-bold text-sm text-white shadow-lg">▶ Start (Jeden boks)</button>
+              <button id="lvl2BtnNonstop" class="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition font-bold text-sm text-white shadow-lg shadow-indigo-500/20">🔄 Gra Non-stop</button>
+            </div>
+          </div>
+          <div id="lvl2Workspace" class="mt-6 min-h-[40px]">
+            <div id="lvl2Sequence" class="flex flex-wrap gap-2 justify-center opacity-0 transition-opacity duration-300"></div>
+          </div>
+        </div>
+
+        <!-- Poziom 3 (Interwały) -->
+        <div id="lvl3" class="tab-content hidden bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl text-center flex-1 flex flex-col justify-center">
+          <div class="flex items-center justify-between mb-2">
+             <h2 class="text-sm font-bold text-indigo-400 uppercase tracking-widest">Trening Interwałów</h2>
+             <label class="flex items-center gap-2 text-xs font-semibold text-amber-200 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20 cursor-pointer">
+               <input type="checkbox" id="lvl3HintToggle" class="accent-amber-500 w-3 h-3">
+               💡 Podpowiedzi
+             </label>
+          </div>
+          
+          <div id="lvl3DisplayBox" class="flex flex-col items-center justify-center gap-1 mb-4 bg-slate-950 py-4 px-2 rounded-2xl border border-slate-800 transition-all">
+             <div class="flex items-center justify-center gap-2 sm:gap-4 text-3xl sm:text-5xl font-black flex-wrap">
+                <span id="lvl3Base" class="text-white">--</span>
+                <span id="lvl3Dir" class="text-indigo-400">?</span>
+                <span id="lvl3IntName" class="text-slate-300 text-2xl sm:text-4xl flex items-center relative">--</span>
+             </div>
+          </div>
+          
+          <div class="flex justify-center items-center gap-2 sm:gap-4 text-xs sm:text-sm font-bold">
+            <div id="lvl3Step1" class="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors">
+              <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px]">1</span> Zagraj bazę
+            </div>
+            <div class="text-slate-600">🡢</div>
+            <div id="lvl3Step2" class="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors">
+              <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px]">2</span> Zagraj interwał
+            </div>
+          </div>
+          <button id="lvl3BtnRoll" class="mt-4 mx-auto px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 transition font-semibold text-sm border border-slate-700 w-full sm:w-auto">🎲 Inny interwał</button>
+        </div>
+
+        <!-- Poziom 4 (Rytm) -->
+        <div id="lvl4" class="tab-content hidden bg-slate-900 border border-amber-500/30 rounded-3xl p-6 shadow-xl flex-1 flex flex-col justify-center">
+            <div class="flex flex-col md:flex-row justify-between gap-6">
+                <div class="w-full md:w-1/3">
+                    <h2 class="text-sm font-bold text-amber-400 uppercase tracking-widest mb-4">Ćwiczenia Rytmiczne</h2>
+                    <p class="text-xs sm:text-sm text-slate-400 mb-6">Uderz dowolny dźwięk z idealnym atakiem w momencie przejścia wskaźnika przez nutę.</p>
+                    
+                    <div class="space-y-4 bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                        <div>
+                            <div class="flex justify-between text-xs font-bold text-slate-400 mb-2">
+                                <span>Tempo (BPM)</span>
+                                <span id="rhythmBpmVal" class="text-white">80</span>
+                            </div>
+                            <input type="range" id="rhythmSlider" min="40" max="180" value="80" class="w-full accent-amber-500">
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold text-slate-400 mb-2">Metrum</div>
+                            <select id="rhythmMetrum" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-bold outline-none focus:border-amber-500">
+                                <option value="4">4/4</option>
+                                <option value="3">3/4</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="w-full md:w-2/3 flex flex-col items-center border-t md:border-t-0 md:border-l border-slate-800 pt-4 md:pt-0 pl-0 md:pl-6">
+                    <div class="w-full h-32 flex justify-center items-end border-b-2 border-slate-700/50 pb-2 relative overflow-hidden mb-6">
+                        <div class="absolute bottom-0 w-full flex justify-center opacity-20 pointer-events-none">
+                            <div class="w-px h-12 bg-white mx-2"></div><div class="w-px h-20 bg-white mx-2"></div>
+                            <div class="w-px h-24 bg-amber-500 mx-2 shadow-[0_0_10px_#f59e0b]"></div>
+                            <div class="w-px h-20 bg-white mx-2"></div><div class="w-px h-12 bg-white mx-2"></div>
+                        </div>
+                        <div id="pendulumArm" class="w-1.5 h-28 bg-gradient-to-t from-slate-600 to-slate-400 origin-bottom rounded-full relative z-10 flex flex-col items-center" style="transform: rotate(0deg);">
+                            <div class="absolute -top-3 w-6 h-6 rounded-full bg-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.6)] border-2 border-white"></div>
+                        </div>
+                    </div>
+
+                    <div id="rhythmLineContainer" class="flex w-full mb-6 h-20 bg-slate-950 p-2 rounded-lg border border-slate-800 relative transition-all overflow-hidden items-end">
+                        <div id="rhythmSweeper" class="absolute top-0 bottom-0 w-1 bg-amber-500 z-20 shadow-[0_0_10px_#f59e0b]" style="display: none; left: 0%;"></div>
+                        <div id="rhythmNotesRow" class="absolute top-0 bottom-0 left-0 right-0 flex w-full"></div>
+                    </div>
+
+                    <div class="flex gap-4 w-full justify-center">
+                        <button id="btnRhythmRoll" class="px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 transition font-semibold text-sm border border-slate-700">🎲 Nowy rytm</button>
+                        <button id="btnRhythmStart" class="px-6 py-3 rounded-xl bg-amber-600 hover:bg-amber-500 transition font-bold text-sm text-white shadow-lg">▶ Start</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stały Gryf na dole -->
+    <div id="fretboardContainer" class="bg-slate-900 border border-slate-800 rounded-3xl p-3 sm:p-5 shadow-2xl relative mt-auto transition-all">
+      <div class="text-[10px] sm:text-xs font-bold text-slate-500 mb-2 pl-2">Schemat Gryfu (Tradycyjny: E1 na górze)</div>
+      <div class="fretboard-scroll overflow-x-auto bg-slate-950 p-2 sm:p-4 rounded-xl sm:rounded-2xl border-2 sm:border-4 border-slate-800 relative">
+        <div id="fretboardCanvas" class="min-w-[800px] sm:min-w-[1000px] h-[180px] sm:h-[240px] select-none relative rosewood rounded-sm overflow-hidden">
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'H'];
+    // Struny E1 na górze (indeks 0 to E1) do E6 (indeks 5 to E6)
+    const STRINGS_ROOTS = [4, 11, 7, 2, 9, 4]; 
+    const STRINGS_ROOTS_MIDI = [64, 59, 55, 50, 45, 40]; 
+    
+    const BOX_SHAPES = {
+      1: [[0,3], [0,3], [0,2], [0,2], [0,2], [0,3]],
+      2: [[3,5], [3,5], [2,4], [2,5], [2,5], [3,5]],
+      3: [[5,7], [5,8], [4,7], [5,7], [5,7], [5,7]],
+      4: [[7,10], [8,10], [7,9], [7,9], [7,10], [7,10]],
+      5: [[10,12], [10,12], [9,12], [9,12], [10,12], [10,12]]
+    };
+
+    const INTERVALS = [
+      { name: 'Sekunda mała', semitones: 1 }, { name: 'Sekunda wielka', semitones: 2 },
+      { name: 'Tercja mała', semitones: 3 }, { name: 'Tercja wielka', semitones: 4 },
+      { name: 'Kwarta czysta', semitones: 5 }, { name: 'Tryton', semitones: 6 },
+      { name: 'Kwinta czysta', semitones: 7 }, { name: 'Seksta mała', semitones: 8 },
+      { name: 'Seksta wielka', semitones: 9 }, { name: 'Septyma mała', semitones: 10 },
+      { name: 'Septyma wielka', semitones: 11 }, { name: 'Oktawa', semitones: 12 }
+    ];
+
+    let activeTab = 'lvl1';
+    let audioContext, analyser, microphone, rafId;
+    let lastStableNote = null, noteStabilityCount = 0;
+    
+    let lvl1Mode = 'text'; 
+    let lvl1TargetNote = '';
+    let lvl1TargetMidi = 0;
+    
+    let lvl2State = { active: false, nonstop: false, root: 0, type: 'minor', box: 1, sequence: [], currentIndex: 0, hintActive: false };
+    let lvl3State = { baseNote: 0, targetNote: 0, step: 1, intervalName: '', intervalSemitones: 0, direction: 1, hintActive: false, playedBaseMidi: -1 };
+    let lvl4State = { active: false, bpm: 80, metrum: 4, pattern: [], measureStartTime: 0, lastHitTime: 0 };
+    let rhythmAnimId;
+    let hintIdleTimer = null, hintFlashInterval = null;
+
+    // Przełączanie kart
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.tab-btn').forEach(b => {
+          b.classList.remove('bg-indigo-600', 'text-white', 'shadow-lg', 'shadow-indigo-500/20');
+          b.classList.add('bg-slate-800', 'text-slate-400');
+        });
+        e.target.classList.remove('bg-slate-800', 'text-slate-400');
+        e.target.classList.add('bg-indigo-600', 'text-white', 'shadow-lg', 'shadow-indigo-500/20');
+
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+        activeTab = e.target.getAttribute('data-target');
+        document.getElementById(activeTab).classList.remove('hidden');
+
+        const fretboard = document.getElementById('fretboardContainer');
+        if(activeTab === 'lvl4') {
+            fretboard.classList.add('opacity-10', 'pointer-events-none'); 
+        } else {
+            fretboard.classList.remove('opacity-10', 'pointer-events-none');
+        }
+
+        if(lvl2State.active) stopLvl2();
+        if(lvl4State.active) toggleLvl4(true);
+        clearHintTimers();
+        clearFretboardOverlays();
+        resetHintTimer(); 
+      });
+    });
+
+    document.querySelectorAll('.lvl1-mode-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.lvl1-mode-btn').forEach(b => {
+                b.classList.remove('bg-indigo-600', 'text-white');
+                b.classList.add('text-slate-400');
+            });
+            e.target.classList.add('bg-indigo-600', 'text-white');
+            e.target.classList.remove('text-slate-400');
+            lvl1Mode = e.target.getAttribute('data-mode');
+            renderLvl1Content();
+        });
+    });
+
+    function drawFretboard() {
+      const canvas = document.getElementById('fretboardCanvas');
+      canvas.innerHTML = '';
+      const fretCount = 22;
+      const scaleFactor = 0.943874;
+      let widths = [];
+      let baseW = 100;
+      for(let i=1; i<=fretCount; i++) { widths.push(baseW); baseW *= scaleFactor; }
+      const sumW = widths.reduce((a,b)=>a+b, 0);
+      const fretPct = widths.map(w => (w/sumW)*97); 
+
+      const fretsLayer = document.createElement('div');
+      fretsLayer.className = 'absolute inset-0 flex z-10 pointer-events-none';
+      const nut = document.createElement('div');
+      nut.style.width = '3%';
+      nut.className = 'h-full nut-wire border-r-2 border-slate-900'; 
+      fretsLayer.appendChild(nut);
+
+      fretPct.forEach((wPct, idx) => {
+        const fret = document.createElement('div');
+        fret.style.width = `${wPct}%`;
+        fret.className = 'h-full border-r-[3px] sm:border-r-[4px] border-black/40 relative flex justify-center';
+        const wire = document.createElement('div');
+        wire.className = 'absolute right-0 top-0 bottom-0 w-1.5 sm:w-2 fret-wire translate-x-1/2';
+        fret.appendChild(wire);
+
+        if ([3, 5, 7, 9, 15, 17, 19, 21].includes(idx + 1)) {
+           fret.innerHTML += `<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-white/20 shadow-inner"></div>`;
+        } else if (idx + 1 === 12) {
+           fret.innerHTML += `<div class="absolute top-[30%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-white/20 shadow-inner"></div>
+                              <div class="absolute top-[70%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-white/20 shadow-inner"></div>`;
+        }
+        fretsLayer.appendChild(fret);
+      });
+      canvas.appendChild(fretsLayer);
+
+      const stringsLayer = document.createElement('div');
+      stringsLayer.className = 'absolute inset-0 flex flex-col z-20 pointer-events-none';
+      for(let s=0; s<6; s++) {
+        const stringRow = document.createElement('div');
+        stringRow.className = 'flex-1 flex items-center w-full relative';
+        const thickness = [0.5, 1, 1.5, 2, 2.5, 3][s];
+        const stringE = document.createElement('div');
+        stringE.className = 'w-full string-wire';
+        stringE.style.height = `${thickness}px`;
+        stringRow.appendChild(stringE);
+        stringsLayer.appendChild(stringRow);
+      }
+      canvas.appendChild(stringsLayer);
+
+      const interactLayer = document.createElement('div');
+      interactLayer.className = 'absolute inset-0 flex flex-col z-30';
+      for(let s=0; s<6; s++) {
+        const stringRow = document.createElement('div');
+        stringRow.className = 'flex-1 flex w-full relative group/row';
+        
+        const nutCell = document.createElement('div');
+        nutCell.style.width = '3%';
+        nutCell.className = 'cursor-pointer relative flex items-center justify-center transition-colors h-full group-hover:bg-white/5 hover:!bg-white/20';
+        nutCell.id = `fretCell_${s}_0`;
+        nutCell.addEventListener('click', () => handleFretClick(s, 0));
+        stringRow.appendChild(nutCell);
+
+        fretPct.forEach((wPct, idx) => {
+           const fretNum = idx + 1;
+           const cell = document.createElement('div');
+           cell.style.width = `${wPct}%`;
+           cell.className = 'cursor-pointer relative flex items-center justify-center transition-colors h-full group-hover:bg-white/5 hover:!bg-white/20';
+           cell.id = `fretCell_${s}_${fretNum}`;
+           cell.addEventListener('click', () => handleFretClick(s, fretNum));
+           stringRow.appendChild(cell);
+        });
+        interactLayer.appendChild(stringRow);
+      }
+      canvas.appendChild(interactLayer);
+    }
+
+    function showFretAnimation(stringIdx, fret, type, persistHtml = null) {
+        const cell = document.getElementById(`fretCell_${stringIdx}_${fret}`);
+        if (!cell) return;
+        
+        const wrapper = document.createElement('div');
+        wrapper.className = 'absolute flex items-center justify-center pointer-events-none z-50';
+        wrapper.style.width = '24px';
+        wrapper.style.height = '24px';
+        wrapper.style.top = '50%';
+        wrapper.style.left = '50%';
+        wrapper.style.transform = 'translate(-50%, -50%)';
+        
+        if (type === 'hit') {
+            wrapper.innerHTML = `<div class="w-full h-full rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center font-bold text-white shadow-xl anim-hit text-[10px]">✔</div>`;
+            cell.appendChild(wrapper);
+            setTimeout(() => {
+                if (persistHtml) {
+                    wrapper.innerHTML = persistHtml;
+                    wrapper.classList.add('anim-marker-fade'); 
+                    setTimeout(() => wrapper.remove(), 5000);
+                } else {
+                    wrapper.remove();
+                }
+            }, 600);
+        } else if (type === 'miss') {
+            wrapper.innerHTML = `<div class="w-full h-full rounded-full bg-rose-600 border-2 border-white flex items-center justify-center font-bold text-white shadow-xl anim-miss text-[10px]">✖</div>`;
+            cell.appendChild(wrapper);
+            setTimeout(() => wrapper.remove(), 1000);
+        } else if (type === 'persist') {
+            wrapper.innerHTML = persistHtml;
+            cell.appendChild(wrapper);
+        } else if (type === 'persist-l3') {
+            wrapper.innerHTML = persistHtml;
+            const existing = cell.querySelector('#lvl3BaseMarker');
+            if (existing && existing.parentElement && existing.parentElement.parentElement === cell) existing.parentElement.remove();
+            cell.appendChild(wrapper);
+        }
+    }
+
+    function clearFretboardOverlays() {
+        for(let s=0; s<6; s++) {
+            for(let f=0; f<=22; f++) {
+                const cell = document.getElementById(`fretCell_${s}_${f}`);
+                if(cell) cell.innerHTML = ''; 
+            }
+        }
+    }
+
+    function findNotePositionsOnFretboard(noteName) {
+        let positions = [];
+        for (let s = 0; s <= 5; s++) {
+            for (let f = 0; f <= 22; f++) {
+                const nIndex = (STRINGS_ROOTS[s] + f) % 12;
+                if (NOTES[nIndex] === noteName) positions.push({s, f});
+            }
+        }
+        return positions;
+    }
+
+    function triggerError(elementId) {
+        const box = document.getElementById(elementId);
+        if(!box) return;
+        box.classList.remove('error-flash', 'glow-success');
+        void box.offsetWidth; 
+        box.classList.add('error-flash');
+    }
+
+    function triggerSuccess(elementId) {
+        const box = document.getElementById(elementId);
+        if(!box) return;
+        box.classList.remove('error-flash', 'glow-success');
+        void box.offsetWidth;
+        box.classList.add('glow-success');
+    }
+
+    // POZIOM 1
+    function generateLvl1Task() {
+      lvl1TargetMidi = 60 + Math.floor(Math.random() * 12); 
+      lvl1TargetNote = NOTES[lvl1TargetMidi % 12];
+      const box = document.getElementById('lvl1NoteBox');
+      if(box) box.classList.remove('glow-success', 'error-flash');
+      renderLvl1Content();
+      resetHintTimer();
+    }
+
+    function renderLvl1Content() {
+        const box = document.getElementById('lvl1NoteBox');
+        if(!box) return;
+        box.innerHTML = '';
+        
+        if (lvl1Mode === 'text') {
+            box.innerHTML = `<div class="text-6xl sm:text-7xl font-black text-white leading-none">${lvl1TargetNote}</div>`;
+        } 
+        else if (lvl1Mode === 'sheet') {
+            const sheet = document.createElement('div');
+            sheet.className = 'w-32 h-32 relative flex flex-col justify-center';
+            for(let i=0; i<5; i++) sheet.innerHTML += `<div class="staff-line"></div>`;
+            const offsetMap = { 60: 60, 61: 60, 62: 48, 63: 48, 64: 36, 65: 24, 66: 24, 67: 12, 68: 12, 69: 0, 70: 0, 71: -12 };
+            const isSharp = [61, 63, 66, 68, 70].includes(lvl1TargetMidi);
+            const topOffset = offsetMap[lvl1TargetMidi];
+            
+            let noteHtml = `<div class="note-head" style="top: calc(50% + ${topOffset}px);"></div>`;
+            if (lvl1TargetMidi === 60 || lvl1TargetMidi === 61) noteHtml += `<div class="note-ledger" style="top: calc(50% + 66px);"></div>`;
+            if (isSharp) noteHtml += `<div class="accidental" style="top: calc(50% + ${topOffset}px);">#</div>`;
+            
+            sheet.innerHTML += noteHtml;
+            box.appendChild(sheet);
+        }
+        else if (lvl1Mode === 'audio') {
+            box.innerHTML = `<button id="btnPlayLvl1Audio" class="w-full h-full flex items-center justify-center bg-transparent hover:bg-slate-700/50 transition cursor-pointer rounded-3xl outline-none focus:outline-none group"><div id="lvl1SpeakerIcon" class="text-6xl sm:text-7xl group-hover:scale-110 transition-transform">🔊</div></button>`;
+            document.getElementById('btnPlayLvl1Audio').addEventListener('click', playTargetLvl1Note);
+        }
+    }
+
+    async function playTargetLvl1Note() {
+        if(!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if(audioContext.state === 'suspended') await audioContext.resume();
+
+        const icon = document.getElementById('lvl1SpeakerIcon');
+        if(icon) {
+            icon.classList.remove('scale-110');
+            void icon.offsetWidth;
+            icon.classList.add('text-indigo-400', 'scale-125');
+            setTimeout(() => icon.classList.remove('text-indigo-400', 'scale-125'), 300);
+        }
+
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.frequency.value = 440 * Math.pow(2, (lvl1TargetMidi - 69) / 12);
+        osc.type = 'sine';
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        gain.gain.setValueAtTime(0, audioContext.currentTime);
+        gain.gain.linearRampToValueAtTime(0.5, audioContext.currentTime + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 1.5);
+        osc.start();
+        osc.stop(audioContext.currentTime + 1.5);
+    }
+
+    // POZIOM 2
+    function generateLvl2Task() {
+      lvl2State.root = Math.floor(Math.random() * 12);
+      lvl2State.type = Math.random() < 0.5 ? 'minor' : 'major';
+      lvl2State.box = Math.floor(Math.random() * 5) + 1;
+      
+      document.getElementById('lvl2Key').textContent = `${NOTES[lvl2State.root]}${lvl2State.type === 'minor' ? 'm' : ' dur'}`;
+      document.getElementById('lvl2Box').textContent = `Box ${lvl2State.box}`;
+      
+      let minorRootIndex = lvl2State.root;
+      let targetBox = lvl2State.box;
+      if (lvl2State.type === 'major') {
+         minorRootIndex = (lvl2State.root - 3 + 12) % 12; 
+         targetBox = (lvl2State.box + 1) % 5 || 5; 
+      }
+      const rootFretOnE = (minorRootIndex - STRINGS_ROOTS[5] + 12) % 12;
+      const shapeOffsets = BOX_SHAPES[targetBox];
+      
+      let baseFretOffset = rootFretOnE;
+      if (baseFretOffset + Math.max(...shapeOffsets.flat()) > 22) baseFretOffset -= 12;
+      
+      if (lvl2State.type === 'major') {
+          const lowestNoteFret = Math.min(...shapeOffsets[5]) + baseFretOffset;
+          if (lowestNoteFret !== (lvl2State.root - STRINGS_ROOTS[5] + 12)%12) {
+              baseFretOffset = (lvl2State.root - STRINGS_ROOTS[5] + 12) % 12;
+              if(baseFretOffset + Math.max(...BOX_SHAPES[lvl2State.box].flat()) > 22) baseFretOffset -= 12;
+          }
+      }
+
+      lvl2State.sequence = [];
+      for(let s=5; s>=0; s--) { 
+         shapeOffsets[s].forEach(offset => {
+             const f = baseFretOffset + offset;
+             if(f >= 0 && f <= 22) lvl2State.sequence.push({ string: s, fret: f, note: NOTES[(STRINGS_ROOTS[s] + f) % 12] });
+         });
+      }
+      stopLvl2();
+    }
+
+    function buildLvl2SequenceUI() {
+      const container = document.getElementById('lvl2Sequence');
+      container.innerHTML = '';
+      if (!lvl2State.hintActive) {
+         container.innerHTML = '<div class="text-sm text-slate-500 italic">Podpowiedzi wyłączone. Zagraj z pamięci!</div>';
+         container.classList.remove('opacity-0');
+         return;
+      }
+      lvl2State.sequence.forEach((item, idx) => {
+         const el = document.createElement('div');
+         el.className = `w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl border-2 flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-300
+           ${idx === 0 ? 'border-amber-400 bg-amber-900/40 text-amber-100 scale-110 shadow-[0_0_15px_rgba(251,191,36,0.4)]' : 'border-slate-700 bg-slate-800 text-slate-500'}`;
+         el.id = `seqItem_${idx}`;
+         el.textContent = item.note;
+         container.appendChild(el);
+      });
+      container.classList.remove('opacity-0');
+    }
+
+    function startLvl2() {
+       if(!audioContext && !microphone) { alert("Włącz dźwięk na górze ekranu!"); requestWakeLock(); return; }
+       lvl2State.active = true;
+       lvl2State.currentIndex = 0;
+       buildLvl2SequenceUI();
+       clearFretboardOverlays();
+       document.getElementById('lvl2BtnStart').classList.add('recording-active', 'bg-rose-500');
+       document.getElementById('lvl2BtnStart').textContent = '⏹ Przerwij';
+       lvl2State.hintActive = document.getElementById('lvl2HintToggle').checked;
+       resetHintTimer();
+    }
+    function startLvl2Nonstop() {
+       if(!audioContext && !microphone) { alert("Włącz dźwięk na górze ekranu!"); return; }
+       lvl2State.nonstop = true;
+       startLvl2();
+       document.getElementById('lvl2BtnStart').classList.add('hidden');
+       document.getElementById('lvl2BtnNonstop').textContent = '⏹ Przerwij Non-stop';
+       document.getElementById('lvl2BtnNonstop').classList.add('bg-rose-500');
+    }
+    function stopLvl2() {
+       lvl2State.active = false;
+       lvl2State.nonstop = false;
+       document.getElementById('lvl2Sequence').classList.add('opacity-0');
+       document.getElementById('lvl2BtnStart').classList.remove('recording-active', 'bg-rose-500', 'hidden');
+       document.getElementById('lvl2BtnStart').textContent = '▶ Start';
+       document.getElementById('lvl2BtnNonstop').textContent = '🔄 Gra Non-stop';
+       document.getElementById('lvl2BtnNonstop').classList.remove('bg-rose-500');
+       clearFretboardOverlays();
+       clearHintTimers();
+    }
+
+    // POZIOM 3
+    function generateLvl3Task() {
+      lvl3State.baseNote = Math.floor(Math.random() * 12);
+      const intObj = INTERVALS[Math.floor(Math.random() * INTERVALS.length)];
+      lvl3State.intervalName = intObj.name;
+      lvl3State.intervalSemitones = intObj.semitones;
+      lvl3State.direction = Math.random() < 0.5 ? 1 : -1;
+      lvl3State.targetNote = (lvl3State.baseNote + (intObj.semitones * lvl3State.direction) + 12) % 12;
+      lvl3State.step = 1; 
+      lvl3State.playedBaseMidi = -1;
+      lvl3State.hintActive = document.getElementById('lvl3HintToggle').checked;
+
+      document.getElementById('lvl3Base').textContent = NOTES[lvl3State.baseNote];
+      document.getElementById('lvl3Dir').textContent = lvl3State.direction > 0 ? '+' : '-';
+      document.getElementById('lvl3IntName').innerHTML = lvl3State.intervalName; 
+      
+      const box = document.getElementById('lvl3DisplayBox');
+      if(box) box.classList.remove('glow-success', 'error-flash');
+      
+      updateLvl3UI();
+      clearFretboardOverlays();
+      resetHintTimer();
+    }
+
+    function updateLvl3UI() {
+      const step1 = document.getElementById('lvl3Step1');
+      const step2 = document.getElementById('lvl3Step2');
+      if(!step1 || !step2) return;
+      
+      if (lvl3State.step === 1) {
+         step1.className = 'flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]';
+         step1.firstElementChild.className = 'w-5 h-5 rounded-full bg-amber-500 text-slate-900 flex items-center justify-center text-[10px]';
+         step1.firstElementChild.textContent = '1';
+         step2.className = 'flex items-center gap-2 px-3 py-2 rounded-lg text-slate-400';
+         step2.firstElementChild.className = 'w-5 h-5 rounded-full flex items-center justify-center text-[10px] bg-slate-800';
+         step2.firstElementChild.textContent = '2';
+         
+         const existingHint = document.getElementById('lvl3DelayedHint');
+         if (existingHint) existingHint.remove();
+      } else {
+         step1.className = 'flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+         step1.firstElementChild.className = 'w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] border border-emerald-500/50';
+         step1.firstElementChild.textContent = '✔';
+         step2.className = 'flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]';
+         step2.firstElementChild.className = 'w-5 h-5 rounded-full bg-amber-500 text-slate-900 flex items-center justify-center text-[10px]';
+         step2.firstElementChild.textContent = '2';
+      }
+    }
+
+    // POZIOM 4
+    function getQuarterNoteSVG() { return `<svg viewBox="0 0 24 40" class="h-10 sm:h-12 w-auto fill-current"><ellipse cx="7" cy="32" rx="6" ry="4" transform="rotate(-20 7 32)"/><path d="M 12 32 L 12 4" stroke="currentColor" stroke-width="2"/></svg>`; }
+    function getEighthNoteSVG() { return `<svg viewBox="0 0 30 40" class="h-10 sm:h-12 w-auto fill-current"><ellipse cx="7" cy="32" rx="6" ry="4" transform="rotate(-20 7 32)"/><path d="M 12 32 L 12 4" stroke="currentColor" stroke-width="2"/><path d="M 12 4 C 20 8, 22 18, 14 22 C 16 17, 14 11, 12 8" fill="currentColor"/></svg>`; }
+    function getQuarterRestSVG() { return `<svg viewBox="0 0 24 40" class="h-10 sm:h-12 w-auto fill-none stroke-current" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 7 10 L 17 18 L 9 26 C 15 26, 17 30, 13 36" /></svg>`; }
+    function getEighthRestSVG() { return `<svg viewBox="0 0 24 40" class="h-10 sm:h-12 w-auto fill-current"><circle cx="9" cy="16" r="2.5"/><path d="M 9 16 C 15 12, 17 18, 13 22 L 9 34" fill="none" stroke="currentColor" stroke-width="2"/></svg>`; }
+
+    function generateLvl4Task() {
+        lvl4State.bpm = parseInt(document.getElementById('rhythmSlider').value);
+        lvl4State.metrum = parseInt(document.getElementById('rhythmMetrum').value); 
+        lvl4State.pattern = [];
+        let totalBeats = 0;
+        
+        while (totalBeats < lvl4State.metrum) {
+            const remaining = lvl4State.metrum - totalBeats;
+            let duration = (remaining >= 1 && Math.random() > 0.5) ? 1 : 0.5;
+            if(remaining < 1) duration = 0.5;
+            const isNote = totalBeats === 0 ? true : Math.random() > 0.3;
+            lvl4State.pattern.push({ type: isNote ? 'note' : 'rest', duration: duration, startBeat: totalBeats, state: 'idle' });
+            totalBeats += duration;
+        }
+        renderLvl4Pattern();
+    }
+
+    function renderLvl4Pattern() {
+        const container = document.getElementById('rhythmNotesRow');
+        if(!container) return;
+        container.innerHTML = '';
+        const totalBeats = lvl4State.metrum;
+        
+        lvl4State.pattern.forEach((item, idx) => {
+            const wrap = document.createElement('div');
+            wrap.style.width = `${(item.duration / totalBeats) * 100}%`;
+            wrap.className = 'relative flex justify-start items-end border-l border-slate-800/50 pl-2 pb-1 h-full';
+            
+            const symbol = document.createElement('div');
+            symbol.id = `rhythmItem_${idx}`;
+            symbol.className = 'transition-all duration-100 flex items-end h-full';
+            
+            if (item.type === 'note') {
+                symbol.innerHTML = item.duration === 1 ? getQuarterNoteSVG() : getEighthNoteSVG();
+                symbol.classList.add('text-slate-200');
+            } else {
+                symbol.innerHTML = item.duration === 1 ? getQuarterRestSVG() : getEighthRestSVG();
+                symbol.classList.add('text-slate-500', 'opacity-60');
+            }
+            wrap.appendChild(symbol);
+            container.appendChild(wrap);
+        });
+    }
+
+    function toggleLvl4(forceStop = false) {
+        if(!audioContext && !forceStop) { alert("Włącz dźwięk na górze ekranu!"); requestWakeLock(); return; }
+        
+        const btn = document.getElementById('btnRhythmStart');
+        const sweeper = document.getElementById('rhythmSweeper');
+        
+        if(!lvl4State.active && !forceStop) {
+            lvl4State.active = true;
+            btn.innerHTML = '⏹ Przerwij';
+            btn.classList.replace('bg-amber-600', 'bg-rose-500');
+            lvl4State.measureStartTime = audioContext.currentTime + 0.5;
+            sweeper.style.display = 'block';
+            requestAnimationFrame(rhythmLoop);
+        } else {
+            lvl4State.active = false;
+            btn.innerHTML = '▶ Start';
+            btn.classList.replace('bg-rose-500', 'bg-amber-600');
+            document.getElementById('pendulumArm').style.transform = `rotate(0deg)`;
+            if(sweeper) sweeper.style.display = 'none';
+            lvl4State.pattern.forEach(p => p.state = 'idle');
+            renderLvl4Pattern();
+        }
+    }
+
+    function rhythmLoop() {
+        if(!lvl4State.active) return;
+        const now = audioContext.currentTime;
+        const beatDuration = 60 / lvl4State.bpm;
+        const measureDuration = lvl4State.metrum * beatDuration;
+        
+        let timeInMeasure = now - lvl4State.measureStartTime;
+        if (timeInMeasure >= measureDuration) {
+            lvl4State.measureStartTime += measureDuration;
+            timeInMeasure = now - lvl4State.measureStartTime;
+            lvl4State.pattern.forEach(p => p.state = 'idle');
+            renderLvl4Pattern();
+        }
+
+        const phase = (timeInMeasure / measureDuration) * Math.PI * 2 * lvl4State.metrum; 
+        const angle = Math.sin(phase) * 20;
+        document.getElementById('pendulumArm').style.transform = `rotate(${angle}deg)`;
+        
+        const sweeper = document.getElementById('rhythmSweeper');
+        if (sweeper) sweeper.style.left = `${(timeInMeasure / measureDuration) * 100}%`;
+
+        rhythmAnimId = requestAnimationFrame(rhythmLoop);
+    }
+
+    function handleRhythmHit() {
+        if(!lvl4State.active) return;
+        const now = audioContext.currentTime;
+        const beatDuration = 60 / lvl4State.bpm;
+        const measureDuration = lvl4State.metrum * beatDuration;
+        
+        let timeInMeasure = now - lvl4State.measureStartTime;
+        if(timeInMeasure < 0) timeInMeasure += measureDuration; 
+        
+        const exactBeat = timeInMeasure / beatDuration;
+        let closestIdx = -1, minDiff = Infinity;
+        
+        lvl4State.pattern.forEach((p, idx) => {
+            let diff = Math.abs(exactBeat - p.startBeat);
+            if (p.startBeat === 0 && exactBeat > lvl4State.metrum - 0.4) diff = Math.abs(exactBeat - lvl4State.metrum); 
+            if (diff < minDiff) { minDiff = diff; closestIdx = idx; }
+        });
+        
+        const toleranceBeats = 0.25; 
+        if (closestIdx !== -1 && minDiff < toleranceBeats) {
+            const target = lvl4State.pattern[closestIdx];
+            if (target.type === 'note' && target.state === 'idle') {
+                target.state = 'hit';
+                const sym = document.getElementById(`rhythmItem_${closestIdx}`);
+                if(sym) { sym.classList.replace('text-slate-200', 'text-emerald-400'); sym.style.filter = 'drop-shadow(0 0 10px #10b981)'; }
+            } else if (target.type === 'rest' || target.state === 'hit') {
+                 triggerError('rhythmLineContainer');
+            }
+        } else {
+             triggerError('rhythmLineContainer');
+        }
+    }
+
+    // WSPÓLNA LOGIKA GRY
+    function handleFretClick(stringIdx, fret) {
+        if (activeTab === 'lvl1') {
+            const clickedNote = NOTES[(STRINGS_ROOTS[stringIdx] + fret) % 12];
+            if (clickedNote === lvl1TargetNote) {
+                showFretAnimation(stringIdx, fret, 'hit', `<div class="w-full h-full rounded-full bg-slate-800/80 border-2 border-indigo-400 text-indigo-300 flex items-center justify-center text-[10px] backdrop-blur-sm z-50">${clickedNote}</div>`);
+                triggerSuccess('lvl1NoteBox');
+                setTimeout(generateLvl1Task, 800);
+            } else {
+                showFretAnimation(stringIdx, fret, 'miss');
+                triggerError('lvl1NoteBox');
+            }
+        } 
+        else if (activeTab === 'lvl3') {
+            const clickedMidi = STRINGS_ROOTS_MIDI[stringIdx] + fret;
+            const clickedNote = NOTES[clickedMidi % 12];
+            
+            if (lvl3State.step === 1) {
+                if (clickedNote === NOTES[lvl3State.baseNote]) {
+                    lvl3State.playedBaseMidi = clickedMidi;
+                    showFretAnimation(stringIdx, fret, 'persist-l3', `<div class="w-full h-full rounded-full bg-slate-800/90 border-2 border-indigo-400 text-indigo-300 flex items-center justify-center text-[10px] backdrop-blur-md z-40 shadow-[0_0_10px_rgba(99,102,241,0.5)]" id="lvl3BaseMarker">${clickedNote}</div>`);
+                    triggerSuccess('lvl3DisplayBox');
+                    lvl3State.step = 2;
+                    updateLvl3UI();
+                    resetHintTimer();
+                } else {
+                    showFretAnimation(stringIdx, fret, 'miss');
+                    triggerError('lvl3DisplayBox');
+                }
+            } else if (lvl3State.step === 2) {
+                const expectedMidi = lvl3State.playedBaseMidi + (lvl3State.intervalSemitones * lvl3State.direction);
+                if (clickedMidi === expectedMidi) {
+                    showFretAnimation(stringIdx, fret, 'hit', `<div class="w-full h-full rounded-full bg-slate-800/90 border-2 border-emerald-400 text-emerald-300 flex items-center justify-center text-[10px] backdrop-blur-md z-50">${clickedNote}</div>`);
+                    triggerSuccess('lvl3DisplayBox');
+                    const baseMarker = document.getElementById('lvl3BaseMarker');
+                    if (baseMarker && baseMarker.parentElement) {
+                        baseMarker.parentElement.classList.add('anim-marker-fade');
+                        setTimeout(() => { if (baseMarker && baseMarker.parentElement) baseMarker.parentElement.remove(); }, 5000);
+                    }
+                    document.getElementById('lvl3Step2').firstElementChild.textContent = '✔';
+                    document.getElementById('lvl3Step2').className = 'flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+                    setTimeout(generateLvl3Task, 1500);
+                } else {
+                    showFretAnimation(stringIdx, fret, 'miss');
+                    triggerError('lvl3DisplayBox');
+                }
+            }
+        }
+    }
+
+    function resetHintTimer() {
+        clearHintTimers();
+        if ((activeTab === 'lvl2' && !lvl2State.hintActive) || (activeTab === 'lvl3' && !lvl3State.hintActive)) return;
+        hintIdleTimer = setTimeout(triggerHint, 10000);
+    }
+    function clearHintTimers() {
+        if(hintIdleTimer) clearTimeout(hintIdleTimer);
+        if(hintFlashInterval) clearInterval(hintFlashInterval);
+        document.querySelectorAll('.hint-flare').forEach(el => el.remove());
+    }
+
+    function triggerHint() {
+        let targets = [];
+        if (activeTab === 'lvl2') {
+            const currentItem = lvl2State.sequence[lvl2State.currentIndex];
+            if (!currentItem) return;
+            targets.push({ s: currentItem.string, f: currentItem.fret });
+            if (currentItem.string === 5) { 
+                if (currentItem.fret + 12 <= 22) targets.push({ s: currentItem.string, f: currentItem.fret + 12 });
+                if (currentItem.fret - 12 >= 0) targets.push({ s: currentItem.string, f: currentItem.fret - 12 });
+            }
+        } 
+        else if (activeTab === 'lvl1') {
+            targets = findNotePositionsOnFretboard(lvl1TargetNote);
+        }
+        else if (activeTab === 'lvl3') {
+            if (lvl3State.step === 1) {
+                targets = findNotePositionsOnFretboard(NOTES[lvl3State.baseNote]);
+            } else {
+                const expectedMidi = lvl3State.playedBaseMidi + (lvl3State.intervalSemitones * lvl3State.direction);
+                for (let s = 0; s < 6; s++) {
+                    let f = expectedMidi - STRINGS_ROOTS_MIDI[s];
+                    if (f >= 0 && f <= 22) targets.push({s, f});
+                }
+                let intNameEl = document.getElementById('lvl3IntName');
+                if (intNameEl && !document.getElementById('lvl3DelayedHint')) {
+                    const delaySpan = document.createElement('span');
+                    delaySpan.id = 'lvl3DelayedHint';
+                    delaySpan.className = 'text-[0.5em] opacity-0 transition-opacity duration-1000 ml-3 align-middle font-normal text-slate-400 tracking-normal absolute whitespace-nowrap';
+                    delaySpan.style.left = "100%";
+                    delaySpan.textContent = `(${lvl3State.intervalSemitones} półtonów)`;
+                    intNameEl.appendChild(delaySpan);
+                    requestAnimationFrame(() => delaySpan.classList.replace('opacity-0', 'opacity-50'));
+                }
+            }
+        }
+        
+        if (targets.length === 0) return;
+        let currentTargetIdx = 0;
+        const showFlare = () => {
+            document.querySelectorAll('.hint-flare').forEach(el => el.remove());
+            const posInfo = targets[currentTargetIdx];
+            const cell = document.getElementById(`fretCell_${posInfo.s}_${posInfo.f}`);
+            if(cell) {
+                const flare = document.createElement('div');
+                flare.className = 'absolute hint-flare pointer-events-none z-50 text-[10px] w-2 h-2 rounded-full bg-white';
+                flare.style.boxShadow = '0 0 10px #fff, 0 0 20px #60a5fa, 0 0 30px #60a5fa';
+                flare.style.animation = 'flare-anim 1.5s ease-in-out forwards';
+                cell.appendChild(flare);
+                setTimeout(() => flare.remove(), 1500); 
+            }
+            currentTargetIdx = (currentTargetIdx + 1) % targets.length;
+        };
+
+        showFlare();
+        hintFlashInterval = setInterval(showFlare, 4500); 
+    }
+
+    function registerPlayedNote(noteName, midiNote) {
+      if (activeTab === 'lvl1') {
+          if (noteName === lvl1TargetNote) {
+              showFretAnimation(0, 0, 'hit', `<div class="absolute inset-0 anim-marker-fade"></div>`);
+              triggerSuccess('lvl1NoteBox');
+              setTimeout(generateLvl1Task, 800);
+          } else {
+              triggerError('lvl1NoteBox');
+          }
+      }
+      else if (activeTab === 'lvl2' && lvl2State.active) {
+          const currentItem = lvl2State.sequence[lvl2State.currentIndex];
+          if (noteName === currentItem.note) {
+              if (lvl2State.hintActive) {
+                  const uiItem = document.getElementById(`seqItem_${lvl2State.currentIndex}`);
+                  uiItem.classList.replace('border-amber-400', 'border-emerald-500');
+                  uiItem.classList.replace('bg-amber-900/40', 'bg-emerald-500/20');
+                  uiItem.classList.replace('text-amber-100', 'text-emerald-400');
+                  uiItem.classList.replace('scale-110', 'scale-100');
+                  uiItem.classList.remove('shadow-[0_0_15px_rgba(251,191,36,0.4)]');
+              }
+              showFretAnimation(currentItem.string, currentItem.fret, 'persist', 
+                 `<div class="absolute inset-0 flex items-center justify-center anim-marker-fade pointer-events-none"><div class="w-4 h-4 rounded-full bg-emerald-600/90 border border-emerald-400 text-white flex items-center justify-center text-[8px] z-50">${currentItem.note}</div></div>`);
+              
+              lvl2State.currentIndex++;
+              resetHintTimer();
+
+              if (lvl2State.currentIndex >= lvl2State.sequence.length) {
+                  if (lvl2State.nonstop) {
+                      setTimeout(() => { generateLvl2Task(); startLvl2Nonstop(); }, 1500);
+                  } else stopLvl2();
+              } else if (lvl2State.hintActive) {
+                  const nextUiItem = document.getElementById(`seqItem_${lvl2State.currentIndex}`);
+                  nextUiItem.classList.replace('border-slate-700', 'border-amber-400');
+                  nextUiItem.classList.replace('bg-slate-800', 'bg-amber-900/40');
+                  nextUiItem.classList.replace('text-slate-500', 'text-amber-100');
+                  nextUiItem.classList.add('scale-110', 'shadow-[0_0_15px_rgba(251,191,36,0.4)]');
+              }
+          }
+      }
+      else if (activeTab === 'lvl3') {
+          if (lvl3State.step === 1) {
+              if (noteName === NOTES[lvl3State.baseNote]) {
+                  lvl3State.playedBaseMidi = midiNote;
+                  let foundPos = null;
+                  for (let s = 0; s < 6; s++) {
+                      let f = midiNote - STRINGS_ROOTS_MIDI[s];
+                      if (f >= 0 && f <= 22) { foundPos = { s, f }; break; }
+                  }
+                  if (foundPos) showFretAnimation(foundPos.s, foundPos.f, 'persist-l3', `<div class="w-full h-full rounded-full bg-slate-800/90 border-2 border-indigo-400 text-indigo-300 flex items-center justify-center text-[10px] backdrop-blur-md z-40 shadow-[0_0_10px_rgba(99,102,241,0.5)]" id="lvl3BaseMarker">${noteName}</div>`);
+                  triggerSuccess('lvl3DisplayBox');
+                  lvl3State.step = 2;
+                  updateLvl3UI();
+                  resetHintTimer();
+              } else triggerError('lvl3DisplayBox');
+          } else if (lvl3State.step === 2) {
+              const expectedMidi = lvl3State.playedBaseMidi + (lvl3State.intervalSemitones * lvl3State.direction);
+              if (midiNote === expectedMidi) {
+                  triggerSuccess('lvl3DisplayBox');
+                  const baseMarker = document.getElementById('lvl3BaseMarker');
+                  if (baseMarker && baseMarker.parentElement) {
+                      baseMarker.parentElement.classList.add('anim-marker-fade');
+                      setTimeout(() => { if (baseMarker && baseMarker.parentElement) baseMarker.parentElement.remove(); }, 5000);
+                  }
+                  for (let s = 0; s < 6; s++) {
+                      let f = midiNote - STRINGS_ROOTS_MIDI[s];
+                      if (f >= 0 && f <= 22) {
+                          showFretAnimation(s, f, 'hit', `<div class="w-full h-full rounded-full bg-slate-800/90 border-2 border-emerald-400 text-emerald-300 flex items-center justify-center text-[10px] backdrop-blur-md z-50">${noteName}</div>`);
+                          break;
+                      }
+                  }
+                  document.getElementById('lvl3Step2').firstElementChild.textContent = '✔';
+                  document.getElementById('lvl3Step2').className = 'flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+                  setTimeout(generateLvl3Task, 1500);
+              } else triggerError('lvl3DisplayBox');
+          }
+      }
+    }
+
+    function autoCorrelate(buf, sampleRate) {
+      let rms = 0;
+      for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
+      rms = Math.sqrt(rms / buf.length);
+      if (rms < 0.01) return { pitch: -1, rms: rms };
+      
+      let r1 = 0, r2 = buf.length - 1, thres = 0.2;
+      for (let i = 0; i < buf.length / 2; i++) if (Math.abs(buf[i]) < thres) { r1 = i; break; }
+      for (let i = 1; i < buf.length / 2; i++) if (Math.abs(buf[buf.length - i]) < thres) { r2 = buf.length - i; break; }
+
+      buf = buf.slice(r1, r2);
+      const SIZE = buf.length;
+      let c = new Array(SIZE).fill(0);
+      for (let i = 0; i < SIZE; i++) for (let j = 0; j < SIZE - i; j++) c[i] = c[i] + buf[j] * buf[j + i];
+
+      let d = 0; while (c[d] > c[d + 1]) d++;
+      let maxval = -1, maxpos = -1;
+      for (let i = d; i < SIZE; i++) if (c[i] > maxval) { maxval = c[i]; maxpos = i; }
+      
+      let T0 = maxpos;
+      let x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
+      let a = (x1 + x3 - 2 * x2) / 2;
+      let b = (x3 - x1) / 2;
+      if (a) T0 = T0 - b / (2 * a);
+
+      return { pitch: sampleRate / T0, rms: rms };
+    }
+
+    let lastRms = 0;
+    function processAudio() {
+      if(!analyser) { rafId = requestAnimationFrame(processAudio); return; }
+      const buffer = new Float32Array(analyser.fftSize);
+      analyser.getFloatTimeDomainData(buffer);
+      const acRes = autoCorrelate(buffer, audioContext.sampleRate);
+      const pitch = acRes.pitch;
+      const rms = acRes.rms;
+      
+      if (activeTab === 'lvl4' && lvl4State.active) {
+          if (rms > 0.04 && rms > lastRms * 1.5 && audioContext.currentTime - lvl4State.lastHitTime > 0.15) {
+              lvl4State.lastHitTime = audioContext.currentTime;
+              handleRhythmHit();
+          }
+          lastRms = rms;
+      }
+      
+      const needle = document.getElementById('tunerNeedle');
+      if (pitch > -1) {
+        const noteNum = 12 * (Math.log(pitch / 440) / Math.log(2));
+        const exactNoteNum = Math.round(noteNum);
+        const midiNote = exactNoteNum + 69;
+        const noteIndex = exactNoteNum % 12 < 0 ? (exactNoteNum % 12) + 12 : exactNoteNum % 12;
+        const noteName = NOTES[noteIndex];
+        const cents = Math.floor((noteNum - exactNoteNum) * 100);
+        
+        document.getElementById('tunerNote').textContent = noteName;
+        document.getElementById('tunerCents').textContent = `${cents > 0 ? '+' : ''}${cents}c`;
+        
+        let needlePos = 50 + cents; 
+        needlePos = Math.max(0, Math.min(100, needlePos));
+        needle.style.left = `${needlePos}%`;
+        if (Math.abs(cents) < 5) needle.className = 'absolute top-0 bottom-0 w-2 bg-emerald-500 rounded-full transition-all duration-75 shadow-[0_0_12px_rgba(16,185,129,0.9)] -translate-x-1/2 z-10 opacity-100';
+        else needle.className = 'absolute top-0 bottom-0 w-2 bg-indigo-500 rounded-full transition-all duration-75 shadow-[0_0_8px_rgba(99,102,241,0.8)] -translate-x-1/2 z-10 opacity-100';
+
+        if (noteName === lastStableNote) {
+          noteStabilityCount++;
+          if (noteStabilityCount === 5) registerPlayedNote(noteName, midiNote);
+        } else { lastStableNote = noteName; noteStabilityCount = 0; }
+      } else {
+        lastStableNote = null; noteStabilityCount = 0;
+        needle.style.left = '50%';
+        needle.className = 'absolute top-0 bottom-0 w-2 bg-slate-600 rounded-full transition-all duration-500 opacity-30 -translate-x-1/2 z-10';
+      }
+      rafId = requestAnimationFrame(processAudio);
+    }
+
+    document.getElementById('btnInitAudio').addEventListener('click', async () => {
+      try {
+        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === 'suspended') await audioContext.resume();
+        
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        microphone = audioContext.createMediaStreamSource(stream);
+        microphone.connect(analyser);
+        
+        const btn = document.getElementById('btnInitAudio');
+        btn.classList.replace('bg-emerald-600', 'bg-slate-800');
+        btn.innerHTML = '✅ Audio aktywne';
+        btn.disabled = true;
+        document.getElementById('audioErrorPanel').classList.add('hidden');
+        processAudio();
+        requestWakeLock();
+      } catch (err) {
+        document.getElementById('audioErrorPanel').classList.remove('hidden');
+      }
+    });
+
+    document.getElementById('lvl2BtnRoll').addEventListener('click', generateLvl2Task);
+    document.getElementById('lvl2BtnStart').addEventListener('click', () => lvl2State.active && !lvl2State.nonstop ? stopLvl2() : startLvl2());
+    document.getElementById('lvl2BtnNonstop').addEventListener('click', () => lvl2State.active && lvl2State.nonstop ? stopLvl2() : startLvl2Nonstop());
+    document.getElementById('lvl2HintToggle').addEventListener('change', () => { lvl2State.hintActive = document.getElementById('lvl2HintToggle').checked; if(lvl2State.active) { buildLvl2SequenceUI(); resetHintTimer(); } });
+    document.getElementById('lvl3HintToggle').addEventListener('change', () => { lvl3State.hintActive = document.getElementById('lvl3HintToggle').checked; resetHintTimer(); });
+    document.getElementById('lvl3BtnRoll').addEventListener('click', generateLvl3Task);
+
+    document.getElementById('rhythmSlider').addEventListener('input', (e) => { document.getElementById('rhythmBpmVal').textContent = e.target.value; lvl4State.bpm = e.target.value; });
+    document.getElementById('rhythmMetrum').addEventListener('change', (e) => { lvl4State.metrum = parseInt(e.target.value); if(!lvl4State.active) generateLvl4Task(); });
+    document.getElementById('btnRhythmRoll').addEventListener('click', generateLvl4Task);
+    document.getElementById('btnRhythmStart').addEventListener('click', () => toggleLvl4(false));
+
+    window.onload = function () {
+      drawFretboard();
+      generateLvl1Task();
+      generateLvl2Task();
+      generateLvl3Task();
+      generateLvl4Task();
+      
+      window.addEventListener('resize', () => {
+          drawFretboard(); clearFretboardOverlays(); clearHintTimers();
+      });
+    }
+  </script>
+</body>
+</html>
+```
